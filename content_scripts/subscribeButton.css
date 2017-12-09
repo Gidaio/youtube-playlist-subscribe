@@ -1,0 +1,22 @@
+button#playlist-subscribe {
+    height: 36px;
+    margin-top: 2px;
+    margin-left: 16px;
+    padding: 10px 16px;
+    border-style: none;
+    border-radius: 2px;
+    font-family: Roboto, Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+button#playlist-subscribe.not-subscribed {
+    background-color: #FF0000;
+    color: #FFFFFF;
+}
+
+button#playlist-subscribe.subscribed {
+    background-color: #eeeeee;
+    color: #11111199;
+}

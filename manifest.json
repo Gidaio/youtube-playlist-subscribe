@@ -1,0 +1,27 @@
+{
+    "author": "Gidaio",
+    "background": {
+        "scripts": ["youtubePlaylistSubscriber.js"],
+        "persistent": false
+    },
+    "browser_action": {
+        "default_title": "Playlists",
+        "default_popup": "popup/popup.html"
+    },
+    "content_scripts": [
+        {
+            "matches": ["*://*/*"],
+            "css": ["content_scripts/subscribeButton.css"],
+            "js": ["content_scripts/insertSubscribeButton.js"]
+        }
+    ],
+    "description": "Allows you to stay up-to-date on your favorite playlists without having to subscribe to content you're not interested in!",
+    "manifest_version": 2,
+    "name": "YouTube Playlist Subscriber",
+    "permissions": [
+        "alarms",
+        "storage",
+        "https://www.googleapis.com/youtube/v3/*"
+    ],
+    "version": "0.1"
+}

@@ -1,0 +1,62 @@
+div#playlists-list {
+    width: 256px;
+}
+
+button {
+    background: none;
+    border-style: solid;
+    border-top: 0px;
+    border-left: 0px;
+    border-right: 0px;
+    border-bottom: 1px;
+    display: inline-block;
+    height: 32px;
+    position: relative;
+    cursor: pointer;
+}
+
+button.playlist {
+    width: 232px;
+    text-align: left;
+}
+
+button.remove {
+    width: 24px;
+}
+
+button:hover {
+    background-color: #E8E8E8;
+}
+
+button:first-child {
+    border-top-left-radius: 2px;
+}
+
+button:nth-child(2) {
+    border-top-right-radius: 2px;
+}
+
+button:nth-last-child(2) {
+    border-bottom-left-radius: 2px;
+    border-bottom: 0px;
+}
+
+button:last-child {
+    border-bottom-right-radius: 2px;
+    border-bottom: 0px;
+}
+
+button.remove:hover {
+    color: #D00000;
+}
+
+div.badge {
+    height: 20px;
+    line-height: 20px;
+    padding: 2px 4px;
+    border-radius: 8px;
+    background-color: #00ff00;
+    position: absolute;
+    right: 4px;
+    top: 4px;
+}
