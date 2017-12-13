@@ -1,14 +1,14 @@
-console.log("Injected!");
+import { MessageType, Message } from "../types/messages";
 
 const searchParams = (new URL(window.location.href)).searchParams;
 const playlistId = searchParams.get("list");
 
 /**
  * Styles a particular element like a YouTube "subscribe" button based on the subscription state.
- * @param {Element} buttonElement The element to style.
- * @param {boolean} subscribed Whether or not you're subscribed.
+ * @param buttonElement The element to style.
+ * @param subscribed Whether or not you're subscribed.
  */
-function styleSubscribeButton(buttonElement, subscribed) {
+function styleSubscribeButton(buttonElement: HTMLButtonElement, subscribed: boolean) : void {
     if(subscribed) {
         buttonElement.textContent = "SUBSCRIBED";
         buttonElement.className = "subscribed";
@@ -25,14 +25,17 @@ function styleSubscribeButton(buttonElement, subscribed) {
  * Sends a message to the background script to subscribe to the current playlist, and styles the
  * button if the subscription was successful.
  */
-function subscribe() {
-    chrome.runtime.sendMessage({
-        type: "subscribe",
+function subscribe() : void {
+    let message: Message = {
+        type: MessageType.Subscribe,
         id: playlistId
-    }, response => {
+    };
+
+    chrome.runtime.sendMessage(message, response => {
         if(response.success) {
             // Make the button an unsubscribe button.
-            let subscribeButton = document.getElementById("playlist-subscribe");
+            let subscribeButton =
+                    document.getElementById("playlist-subscribe") as HTMLButtonElement;
             styleSubscribeButton(subscribeButton, true);
         }
         else {
@@ -45,15 +48,18 @@ function subscribe() {
  * Sends a message to the background script to unsubscribe from the current playlist, and styles the
  * button if the unsubscription was successful.
  */
-function unsubscribe() {
+function unsubscribe() : void {
     // Tell the background script to unsubscribe us.
-    chrome.runtime.sendMessage({
-        type: "unsubscribe",
+    let message: Message = {
+        type: MessageType.Unsubscribe,
         id: playlistId
-    }, response => {
+    };
+
+    chrome.runtime.sendMessage(message, response => {
         if(response.success) {
             // Make the button a subscribe button.
-            let subscribeButton = document.getElementById("playlist-subscribe");
+            let subscribeButton =
+                    document.getElementById("playlist-subscribe") as HTMLButtonElement;
             styleSubscribeButton(subscribeButton, false);
         }
         else {
@@ -65,28 +71,27 @@ function unsubscribe() {
 console.log("Getting data...");
 
 // Check to see if we're already subscribed to this playlist, and create a button reflecting this.
-chrome.storage.local.get("playlists", storedData => {
-    console.log("Stored data:", storedData);
-    let playlists = storedData.playlists;
-    let isSubscribed;
+let message: Message = {
+    type: MessageType.IsSubscribed,
+    id: playlistId
+};
 
-    if(playlists === undefined || Object.keys(playlists).length === 0) {
-        isSubscribed = false;
+chrome.runtime.sendMessage(message, response => {
+    if(response.success) {
+        console.log("Subscribed?", response.data);
+        
+        let subscribeButton = document.createElement("button");
+        subscribeButton.id = "playlist-subscribe";
+        
+        styleSubscribeButton(subscribeButton, response.data);
+    
+        console.log("Button:", subscribeButton);
+    
+        let injectingElement = document.getElementById("top-level-buttons");
+        console.log("Injecting element:", injectingElement);
+        injectingElement.appendChild(subscribeButton);
     }
     else {
-        isSubscribed = playlists[playlistId] !== undefined;
+        alert(response.message);
     }
-
-    console.log("Subscribed?", isSubscribed);
-
-    let subscribeButton = document.createElement("button");
-    subscribeButton.id = "playlist-subscribe";
-    
-    styleSubscribeButton(subscribeButton, isSubscribed);
-
-    console.log("Button:", subscribeButton);
-
-    let injectingElement = document.getElementById("top-level-buttons");
-    console.log("Injecting element:", injectingElement);
-    injectingElement.appendChild(subscribeButton);
 });

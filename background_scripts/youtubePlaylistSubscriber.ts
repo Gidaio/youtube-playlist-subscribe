@@ -1,33 +1,70 @@
+import { StoredPlaylist, Playlist, PlaylistResponse } from "../types/playlist";
+import { MessageType, MessageResponse } from "../types/messages";
+
 // Just some good ol' constants.
 const apiKey = "AIzaSyDWbZUFpvo4eKV-zLCPVK2h4Q4F0QZ9x6s";
 const baseURL = "https://www.googleapis.com/youtube/v3/";
 
-// For now, reset the data every time.
-chrome.storage.local.clear();
-
 // The format for the data is going to be something like this:
-// "playlists": {
-//     "{playlistId}": {
-//         "newItemCount": number,
-//         "itemCount": number,
-//         "title": string
-//     }
+// "{playlistId}": {
+//     "newItemCount": number,
+//     "itemCount": number,
+//     "title": string
 // },
 // "recentError: {}"
 
 /**
+ * A helper function for getting data from Chrome's storage.
+ * @param storageKey The key of the data to get.
+ * @returns A Promise response containing the data at the key.
+ */
+function storageGet(storageKey: string) : Promise<any> {
+    return new Promise((resolve, reject) => {
+        chrome.storage.local.get(storageKey, data => {
+            if(chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError.message);
+            }
+            else {
+                resolve(data[storageKey]);
+            }
+        });
+    });
+}
+
+/**
+ * A helper function for storing data in Chrome's storage.
+ * @param storageKey The key to store the data in.
+ * @param storageData The data to store at the key.
+ * @returns An empty promise when the write resolves.
+ */
+function storageSet(storageKey: string, storageData: any) : Promise<string> {
+    let storageObject: any = {};
+    storageObject[storageKey] = storageData;
+    return new Promise((resolve, reject) => {
+        chrome.storage.local.set(storageObject, () => {
+            if(chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError.message);
+            }
+            else {
+                resolve();
+            }
+        });
+    });
+}
+
+/**
  * Clear's the badge on the browser action.
  */
-function clearBadge() {
+function clearBadge() : void {
     chrome.browserAction.setBadgeText({ text: "" });
 }
 
 /**
  * Sets the badge on the browser action to green, with a number indicating the number of updates to
  * playlists.
- * @param {number} numberOfUpdates The number of updates to display.
+ * @param numberOfUpdates The number of updates to display.
  */
-function setBadgeUpdates(numberOfUpdates) {
+function setBadgeUpdates(numberOfUpdates: number) : void {
     console.log("I got " + numberOfUpdates + " as the number of updates");
     if(numberOfUpdates === 0) {
         clearBadge();
@@ -40,20 +77,20 @@ function setBadgeUpdates(numberOfUpdates) {
 /**
  * Sets the badge on the browser action to a red "!", signifying an error.
  */
-function setBadgeError() {
+function setBadgeError() : void {
     chrome.browserAction.setBadgeText({ text: "!" });
     chrome.browserAction.setBadgeBackgroundColor({ color: [255, 0, 0, 255] });
 }
 
 /**
  * Builds a URL suitable for querying the YouTube Data API.
- * @param {string} thing The thing to query. Usually either "playlists" or "playlistItems".
- * @param {*} parameters An object of key-value pairs to be converted to key-value pairs in the URL
+ * @param type The thing to query. Usually either "playlists" or "playlistItems".
+ * @param parameters An object of key-value pairs to be converted to key-value pairs in the URL
  * request.
- * @returns {string} A string containing the constructed URL.
+ * @returns A string containing the constructed URL.
  */
-function buildRequestURL(thing, parameters) {
-    let requestURL = baseURL + thing + "?";
+function buildRequestURL(type: string, parameters: any) : string {
+    let requestURL = baseURL + type + "?";
 
     // For every key, make a <key>=<value> thing, making sure to sanitize the value properly.
     for(let key in parameters) {
@@ -68,16 +105,16 @@ function buildRequestURL(thing, parameters) {
 
 /**
  * Performs an asynchronous XHR with the requested data.
- * @param {string} thing The thing to query. Usually either "playlists" or "playlistItems".
- * @param {*} parameters An object of key-value pairs to be converted to key-value pairs in the URL
+ * @param type The thing to query. Usually either "playlists" or "playlistItems".
+ * @param parameters An object of key-value pairs to be converted to key-value pairs in the URL
  * request. This should not contain the API key; it's added automatically.
- * @returns {Promise} A promise containing the XHR.
+ * @returns A promise containing the XHR.
  */
-function doRequest(thing, parameters) {
+function doRequest(type: string, parameters: any) : Promise<PlaylistResponse> {
     return new Promise((resolve, reject) => {
         // Add the API key in, and build the URL.
         parameters.key = apiKey;
-        const requestURL = buildRequestURL(thing, parameters);
+        const requestURL = buildRequestURL(type, parameters);
 
         // Then construct the XHR.
         const xhr = new XMLHttpRequest();
@@ -112,11 +149,11 @@ function doRequest(thing, parameters) {
 /**
  * Fetches the current length of the playlist and adds it to the "playlists" object in local
  * storage.
- * @param {string} playlistId The ID of the playlist to subscribe to.
- * @returns {Promise<boolean>} A Promise that resolves with a boolean indicating whether or not the
- * request was successful.
+ * @param playlistId The ID of the playlist to subscribe to.
+ * @returns A Promise that resolves with a boolean indicating whether or not the request was
+ * successful.
  */
-function subscribe(playlistId) {
+function subscribe(playlistId: string) : Promise<boolean> {
     console.log("Subscribing to playlist " + playlistId);
 
     // Construct the parameters of the request. Like usual, we only need the ID and the item count.
@@ -131,26 +168,24 @@ function subscribe(playlistId) {
         // If we had a success, remove any errors.
         chrome.storage.local.remove("recentError");
 
-        // Add the playlist to local storage. See above for the "database schema." We have to first
-        // get the data out as an object, then add the new playlist, then put it back in, because
-        // there's no "update" method.
-        chrome.storage.local.get("playlists", playlists => {
-            playlists[data.items[0].id] = {
-                newItemCount: data.items[0].contentDetails.itemCount,
-                itemCount: data.items[0].contentDetails.itemCount,
-                title: data.items[0].snippet.title
-            };
+        // Add the playlist to local storage. See above for the "database schema."
+        const id = data.items[0].id;
+        const playlist: StoredPlaylist = {
+            title: data.items[0].snippet.title,
+            itemCount: data.items[0].contentDetails.itemCount,
+            readItemCount: data.items[0].contentDetails.itemCount
+        }
 
-            chrome.storage.local.set({ playlists: playlists });
-        });
-
+        return storageSet(id, playlist);
+    })
+    .then(() => {
         return true;
     })
     .catch(error => {
         // Otherwise, log the error and change the badge to let them know something went wrong.
         error.displayableMessage = "Sorry, we couldn't add your playlist. D:";
-        chrome.storage.local.set({ recentError: error });
         console.error(error);
+        storageSet("recentError", error);
         setBadgeError();
 
         return false;
@@ -159,31 +194,21 @@ function subscribe(playlistId) {
 
 /**
  * Unsubscribes from the indicated playlist by removing it from the browser's storage.
- * @param {string} playlistId The "indicated playlist."
+ * @param playlistId The "indicated playlist."
  */
-function unsubscribe(playlistId) {
+function unsubscribe(playlistId) : void {
     console.log("Unsubscribing from playlist " + playlistId);
 
-    // Remove the playlist from the "playlists" key in data.
-    chrome.storage.local.get("playlists", storedData => {
-        let playlists = storedData.playlists;
-
-        if(playlists === undefined || Object.keys(playlists).length === 0) {
-            return;
-        }
-
-        delete playlists[playlistId];
-
-        chrome.storage.local.set({ playlists: playlists });
-    });
+    // Remove the playlist.
+    chrome.storage.local.remove(playlistId);
 }
 
 /**
  * Fetches information about each playlist and updates said information if necessary.
- * @param {*} alarm The alarm that triggered this function. Only calls from "Playlist Updater" are
+ * @param alarm The alarm that triggered this function. Only calls from "Playlist Updater" are
  * honored.
  */
-function updatePlaylists(alarm) {
+function updatePlaylists(alarm?: any) : void {
     // If an alarm was passed in, check it's name. If it's not the right alarm, forget we ever said
     // anything.
     if(alarm) {
@@ -194,26 +219,23 @@ function updatePlaylists(alarm) {
 
     console.log("Updating playlists!");
 
-    // Run through all of the playlists and grab their IDs.
-    chrome.storage.local.get("playlists", storedData => {
-        // get() returns an object that looks like:
-        // {
-        //     playlists: {
-        //         ... data...
-        //     }
-        // }
-        // so we have to do this weird "dereferencing" thing.
-        let storedPlaylists = storedData.playlists;
-
-        // If there are no playlists, don't do anything!
-        if(storedPlaylists === undefined || Object.keys(storedPlaylists).length === 0) {
-            return;
-        }
-
-        let playlistIds = [];
+    storageGet(null)
+    .then(storedPlaylists => {
+        // Get all the IDs out!
+        let playlistIds: string[] = [];
 
         for(let playlistId in storedPlaylists) {
+            // If there's an error, don't do anything with that.
+            if(playlistId === "recentError") {
+                continue;
+            }
+
             playlistIds.push(playlistId);
+        }
+
+        // If there weren't any playlists, stop here.
+        if(playlistIds.length === 0) {
+            return;
         }
 
         // Then build a request with all of the IDs joined by commas.
@@ -222,69 +244,72 @@ function updatePlaylists(alarm) {
             fields: "items(id,contentDetails/itemCount,snippet/title)",
             id: playlistIds.join(",")
         };
-    
+
         doRequest("playlists", requestParameters)
-        .then(data => {
+        .then(fetchedPlaylists => {
             // If we had a success, remove any errors.
             chrome.storage.local.remove("recentError");
-    
+
             // Once we get the data, run through it all.
             let totalUpdated = 0;
-            // Also, keep track if anything changed.
-            let changes = false;
-    
-            data.items.forEach(fetchedPlaylist => {
+
+            fetchedPlaylists.items.forEach(fetchedPlaylist => {
+                // Also, keep track if anything changed.
+                let changes = false;
+
                 const id = fetchedPlaylist.id;
+                let storedPlaylist = storedPlaylists[id] as StoredPlaylist;
                 console.log("Updating playlist " + id);
-                const newCount = fetchedPlaylist.contentDetails.itemCount;
-                const oldCount = storedPlaylists[id].itemCount;
-    
+                
+                const currentCount = fetchedPlaylist.contentDetails.itemCount;
+                const readCount = storedPlaylist.readItemCount;
+
                 // Check to see if the name changed. Most of the time, it's going to be the same.
                 // But hey! If it's not, well, I get to say I support that.
-                if(storedPlaylists[id].title !== fetchedPlaylist.snippet.title) {
-                    storedPlaylists[id].title = fetchedPlaylist.snippet.title;
+                if(storedPlaylist.title !== fetchedPlaylist.snippet.title) {
+                    storedPlaylist.title = fetchedPlaylist.snippet.title;
                     changes = true;
                 }
-    
+
                 // If there are more now than there were, add the difference to the amount updated,
                 // and store the "new" amount. That way, we know how many are new since the user
                 // last checked it. We'll update it in the little popup.
-                if(newCount > oldCount) {
-                    totalUpdated += newCount - oldCount;
-                    storedPlaylists[id].newItemCount = newCount;
+                if(currentCount > readCount) {
+                    totalUpdated += currentCount - readCount;
+                    storedPlaylist.itemCount = currentCount;
                     changes = true;
                 }
                 // If it's smaller than when the user last looked at it, save those smaller values
                 // and move on as if nothing happened. The user's (probably) not particularly
                 // interested if the number goes down, but we need to hang on to it just in case.
-                else if(newCount < oldCount) {
-                    storedPlaylists[id].newItemCount = newCount;
-                    storedPlaylists[id].itemCount = newCount;
+                else if(currentCount < readCount) {
+                    storedPlaylist.itemCount = currentCount;
+                    storedPlaylist.readItemCount = currentCount;
                     changes = true;
+                }
+
+                // If anything changed, go ahead and save it back to the storage.
+                if(changes) {
+                    storageSet(id, storedPlaylist);
                 }
             });
 
-            // If stuff changed, save it all back.
-            if(changes) {
-                chrome.storage.local.set({ playlists: storedPlaylists });
-            }
-    
-            // Then update the badge.
+            // If there were some playlists that changed, update the badge.
             if(totalUpdated > 0) {
                 setBadgeUpdates(totalUpdated);
             }
         })
         .catch(error => {
             error.displayableMessage = "Something went wrong fetching your playlist updates. :'(";
-            chrome.storage.local.set({ recentError: error });
             console.error(error);
+            storageSet("recentError", error);
             setBadgeError();
         });
     });
-
 }
 
-// Start by making sure the badge is all clear.
+// Start by making sure the badge and storage are all clear.
+chrome.storage.local.clear();
 clearBadge();
 
 // Do an initial update, because they, i.e., just started the browser.
@@ -296,20 +321,48 @@ chrome.alarms.onAlarm.addListener(updatePlaylists);
 
 // Then add listeners for messages passed from the content script.
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if(request.type === "subscribe") {
+    if(request.type === MessageType.Subscribe) {
         subscribe(request.id)
         .then(successful => {
             if(successful) {
-                sendResponse({ success: true });
+                sendResponse(<MessageResponse>{ success: true });
             }
             else {
-                sendResponse({ success: false, message: "Looks like we borked that one up!" });
+                sendResponse(<MessageResponse>{
+                    success: false,
+                    message: "Looks like we borked that one up!"
+                });
             }
-        })
+        });
     }
-    else if(request.type === "unsubscribe") {
+    else if(request.type === MessageType.Unsubscribe) {
         unsubscribe(request.id);
-        sendResponse({ success: true });
+        sendResponse(<MessageResponse>{ success: true });
+    }
+    else if(request.type === MessageType.IsSubscribed) {
+        storageGet(request.id)
+        .then(playlist => {
+            let response: MessageResponse = {
+                success: true
+            };
+
+            if(playlist) {
+                response.data = true;
+            }
+            else {
+                response.data = false;
+            }
+
+            sendResponse(response);
+        })
+        .catch(error => {
+            let response: MessageResponse = {
+                success: false,
+                message: "Something went wrong!"
+            };
+
+            sendResponse(response);
+        });
     }
 
     // Return true so the sender knows we got it and are potentially sending a response

@@ -15,6 +15,10 @@ button {
     cursor: pointer;
 }
 
+button:hover {
+    background-color: #E8E8E8;
+}
+
 button.playlist {
     width: 232px;
     text-align: left;
@@ -24,8 +28,8 @@ button.remove {
     width: 24px;
 }
 
-button:hover {
-    background-color: #E8E8E8;
+button.remove:hover {
+    color: #D00000;
 }
 
 button:first-child {
@@ -44,10 +48,6 @@ button:nth-last-child(2) {
 button:last-child {
     border-bottom-right-radius: 2px;
     border-bottom: 0px;
-}
-
-button.remove:hover {
-    color: #D00000;
 }
 
 div.badge {
